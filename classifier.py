@@ -4,6 +4,7 @@ from tensorflow.keras.layers import Dense, Flatten, Conv2D, MaxPool2D, Dropout
 from tensorflow.keras import Model
 import numpy as np
 from image_preprocessor import ImagePreprocessor
+from early_stopping import EarlyStopping
 
 np.set_printoptions(suppress=True)
 
@@ -15,7 +16,9 @@ vehicle_types = {
 }
 pix = 64
 
-ip = ImagePreprocessor(normalization=255, training_threshold=0.7)
+es = EarlyStopping(depth=5, ignore=20, method='consistency')
+
+ip = ImagePreprocessor(normalization=255, training_threshold=0.7, color_mode='L')
 package = ip.preprocess_dirs(
     ['images/boat', 'images/car', 'images/motorcycle', 'images/plane'],
     [2, 0, 3, 1],
@@ -37,9 +40,11 @@ class VehiclePredictor(Model):
         self.mp1 = MaxPool2D()
         self.conv2 = Conv2D(32, (3,3), activation='relu')
         self.mp2 = MaxPool2D()
+        self.conv3 = Conv2D(64, (3,3), activation='relu')
+        self.mp3 = MaxPool2D()
         self.dropout1 = Dropout(0.5)
         self.flatten = Flatten()
-        self.d1 = Dense(256, activation='relu')
+        self.d1 = Dense(128, activation='relu')
         self.d2 = Dense(4)
     
     def call(self, x):
@@ -47,6 +52,8 @@ class VehiclePredictor(Model):
         x = self.mp1(x)
         x = self.conv2(x)
         x = self.mp2(x)
+        x = self.conv3(x)
+        x = self.mp3(x)
         x = self.dropout1(x)
         x = self.flatten(x)
         x = self.d1(x)
@@ -81,7 +88,7 @@ def test_step(features, labels):
     test_loss(t_loss)
     test_accuracy(labels, predictions)
 
-for epoch in range(100):
+for epoch in range(200):
     train_loss.reset_states()
     train_accuracy.reset_states()
     test_loss.reset_states()
@@ -93,6 +100,10 @@ for epoch in range(100):
     for features, label in test_ds:
         test_step(features, label)
     
+    if es.check(test_loss.result()):
+        print('BREAKING LOOP')
+        break
+    
     print(
         f'Epoch {epoch+1} || '
         f'Training Loss: {train_loss.result()}, '
@@ -100,3 +111,12 @@ for epoch in range(100):
         f'Testing Loss: {test_loss.result()}, '
         f'Testing Accuracy: {test_accuracy.result()}'
     )
+
+def format_prediction(image):
+    pred = model.predict(np.array(ip.file_to_array(image)))
+    return pred, vehicle_types[np.argmax(pred[0])]
+print('---------------EXTERNAL TESTING PREDICTIONS---------------')
+print(f'Car: {format_prediction("images/external test/car1.jpg")[1]}')
+print(f'Boat: {format_prediction("images/external test/boat1.jpg")[1]}')
+print(f'Plane: {format_prediction("images/external test/plane1.jpg")[1]}')
+print(f'Motorcycle: {format_prediction("images/external test/motorcycle1.jpg")[1]}')
