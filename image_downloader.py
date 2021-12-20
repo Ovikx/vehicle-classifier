@@ -78,4 +78,4 @@ class ImageDownloader:
         return url_data
 
 downloader = ImageDownloader('C:\Program Files (x86)\\chromedriver.exe')
-downloader.download_images('motorcycle', 200, 'images/motorcycle')
+downloader.download_images('toyota car', 50, 'images/car')

@@ -14,9 +14,9 @@ vehicle_types = {
     2 : 'boat',
     3 : 'motorcycle'
 }
-pix = 64
+pix = 256
 
-es = EarlyStopping(depth=5, ignore=20, method='consistency')
+es = EarlyStopping(depth=10, ignore=20, method='slope')
 
 ip = ImagePreprocessor(normalization=255, training_threshold=0.7, color_mode='L')
 package = ip.preprocess_dirs(
@@ -36,32 +36,30 @@ test_ds = tf.data.Dataset.from_tensors((test_features, test_labels)).shuffle(100
 class VehiclePredictor(Model):
     def __init__(self):
         super(VehiclePredictor, self).__init__()
-        self.conv1 = Conv2D(16, (3,3), activation='relu', input_shape=(pix,pix,1))
-        self.mp1 = MaxPool2D()
-        self.conv2 = Conv2D(32, (3,3), activation='relu')
-        self.mp2 = MaxPool2D()
-        self.conv3 = Conv2D(64, (3,3), activation='relu')
-        self.mp3 = MaxPool2D()
-        self.conv4 = Conv2D(128, (3,3), activation='relu')
-        self.mp4 = MaxPool2D()
-        self.dropout1 = Dropout(0.5)
+        self.conv1_1 = Conv2D(64, (3,3), activation='relu', input_shape=(pix,pix,1))
+        self.mp1 = MaxPool2D(strides=(2,2))
+        self.conv2_1 = Conv2D(128, (3,3), activation='relu')
+        self.mp2 = MaxPool2D(strides=(2,2))
+        self.conv3_1 = Conv2D(256, (3,3), activation='relu')
+        self.mp3 = MaxPool2D(strides=(2,2))
+        self.conv4_1 = Conv2D(512, (3,3), activation='relu')
+        self.mp4 = MaxPool2D(strides=(2,2))
         self.flatten = Flatten()
-        self.d1 = Dense(128, activation='relu')
-        self.d2 = Dense(4)
+        self.d1 = Dense(512, activation='relu')
+        self.d3 = Dense(4, activation='softmax')
     
     def call(self, x):
-        x = self.conv1(x)
+        x = self.conv1_1(x)
         x = self.mp1(x)
-        x = self.conv2(x)
+        x = self.conv2_1(x)
         x = self.mp2(x)
-        x = self.conv3(x)
+        x = self.conv3_1(x)
         x = self.mp3(x)
-        x = self.conv4(x)
+        x = self.conv4_1(x)
         x = self.mp4(x)
-        x = self.dropout1(x)
         x = self.flatten(x)
         x = self.d1(x)
-        return self.d2(x)
+        return self.d3(x)
 
 model = VehiclePredictor()
 
@@ -92,7 +90,7 @@ def test_step(features, labels):
     test_loss(t_loss)
     test_accuracy(labels, predictions)
 
-for epoch in range(200):
+for epoch in range(500):
     train_loss.reset_states()
     train_accuracy.reset_states()
     test_loss.reset_states()
@@ -121,6 +119,8 @@ def format_prediction(image):
     return pred, vehicle_types[np.argmax(pred[0])]
 print('---------------EXTERNAL TESTING PREDICTIONS---------------')
 print(f'Car: {format_prediction("images/external test/car1.jpg")[1]}')
+print(f'Car 2: {format_prediction("images/external test/car2.jpg")[1]}')
 print(f'Boat: {format_prediction("images/external test/boat1.jpg")[1]}')
 print(f'Plane: {format_prediction("images/external test/plane1.jpg")[1]}')
+print(f'Plane 2: {format_prediction("images/external test/plane2.jpg")[1]}')
 print(f'Motorcycle: {format_prediction("images/external test/motorcycle1.jpg")[1]}')
